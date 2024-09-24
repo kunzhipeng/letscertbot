@@ -23,8 +23,8 @@ sys.path.append(root_path)
 from lib import Logger
 
 class Qcloud:
-    __host = 'cns.api.qcloud.com'
-    __path  = '/v2/index.php'
+    __host = 'dnspod.tencentcloudapi.com'
+    __path  = '/'
 
     def __init__(self, secret_id, secret_key):
         self.secret_id = secret_id
@@ -33,12 +33,12 @@ class Qcloud:
     # @example qcloud.add_domain_record("example.com", "_acme-challenge", "123456", "TXT")
     def add_domain_record(self, domain, rr, value, _type = 'TXT'):
         params = {
-            'Action'     : 'RecordCreate',
-            'domain'     : domain,
-            'subDomain'  : rr,
-            'recordType' : _type,
-            'recordLine' : '默认',
-            'value'      : value
+            'Action'     : 'CreateRecord',
+            'Domain'     : domain,
+            'SubDomain'  : rr,
+            'RecordType' : _type,
+            'RecordLine' : '默认',
+            'Value'      : value
         }
         self.__request(params)
 
@@ -47,23 +47,23 @@ class Qcloud:
         result = self.get_domain_records(domain, rr, _type)
         result = json.loads(result)
 
-        for record in result['data']['records']:
-            self.delete_domain_record_by_id(domain, record['id'])
+        for record in result['Response']['RecordList']:
+            self.delete_domain_record_by_id(domain, record['RecordId'])
 
     def delete_domain_record_by_id(self, domain, _id):
         params = {
-            'Action'     : 'RecordDelete',
-            'domain'     : domain,
-            'recordId'   : _id
+            'Action'     : 'DeleteRecord',
+            'Domain'     : domain,
+            'RecordId'   : _id
         }
         self.__request(params)
 
     def get_domain_records(self, domain, rr, _type = 'TXT'):
         params = {
-            'Action'     : 'RecordList',
-            'domain'     : domain,
-            'subDomain'  : rr,
-            'recordType' : _type
+            'Action'     : 'DescribeRecordList',
+            'Domain'     : domain,
+            'Subdomain'  : rr,
+            'RecordType' : _type
         }
         return self.__request(params)
 
@@ -78,6 +78,10 @@ class Qcloud:
             f = urllib2.urlopen(request, timeout=45)
             response = f.read().decode('utf-8')
             Logger.info(response)
+            json_data = json.loads(response)
+            if 'message' in json_data:
+                message = json_data['message']
+                Logger.info('message: {}'.format(message))
             return response
         except urllib2.HTTPError as e:
             Logger.error('aliyun#__request raise urllib2.HTTPError: ' + str(e))
@@ -85,6 +89,7 @@ class Qcloud:
 
     def __compose_url(self, params):
         common_params = {
+            'Version'           : '2021-03-23',
             'SecretId'          : self.secret_id,
             'SignatureMethod'   : 'HmacSHA1',
             'Nonce'             : int(round(time.time() * 1000)),
@@ -140,5 +145,7 @@ if __name__ == '__main__':
         qcloud.add_domain_record(certbot_domain, acme_challenge, certbot_validation)
     elif 'delete' == action:
         qcloud.delete_domain_record(certbot_domain, acme_challenge, certbot_validation)
+    elif 'list' == action:
+        qcloud.get_domain_records(certbot_domain, acme_challenge)
 
     Logger.info('结束调用腾讯云 DNS API')
